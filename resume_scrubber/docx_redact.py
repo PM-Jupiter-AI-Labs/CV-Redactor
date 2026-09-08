@@ -87,7 +87,11 @@ def redact_docx(src: str, dst: str, tokens: list[str], first: str | None = None)
     sre = surname_re(tokens)
     hits: int = 0
 
-    for part in document.part.package.iter_parts():
+    package = document.part.package
+    if package is None:  # pragma: no cover - a .docx always has one
+        raise ValueError(f"{src} has no OPC package to walk")
+
+    for part in package.iter_parts():
         element = getattr(part, "element", None)
         if element is None:
             continue

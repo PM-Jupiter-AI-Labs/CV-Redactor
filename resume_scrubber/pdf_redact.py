@@ -21,6 +21,7 @@ import pymupdf
 from . import Result
 from . import config as C
 from . import patterns as P
+from . import pymupdf_compat as M
 from .rules import Span, redact_spans, surname_re
 
 
@@ -34,7 +35,7 @@ class Word(NamedTuple):
     text: str
     block: int
     line: int
-    index: int
+    word_no: int
 
     @property
     def rect(self) -> pymupdf.Rect:
@@ -46,7 +47,7 @@ LineKey = tuple[int, int]
 
 
 def _page_words(page: pymupdf.Page) -> list[Word]:
-    return [Word(*w) for w in page.get_text("words")]
+    return [Word(*w) for w in M.page_words(page)]
 
 
 def _lines(words: list[Word]) -> list[tuple[LineKey, list[Word]]]:
@@ -73,7 +74,9 @@ def _join(words: list[Word]) -> tuple[str, list[tuple[int, int, Word]]]:
     return text, offsets
 
 
-def _strip_links(page: pymupdf.Page) -> tuple[list[pymupdf.Rect], list[pymupdf.Rect]]:
+def _strip_links(
+    doc: pymupdf.Document, page: pymupdf.Page
+) -> tuple[list[pymupdf.Rect], list[pymupdf.Rect]]:
     """Delete every link annotation, reporting where they were.
 
     Returns the rectangles of all links, and of those whose visible text was
@@ -93,7 +96,7 @@ def _strip_links(page: pymupdf.Page) -> tuple[list[pymupdf.Rect], list[pymupdf.R
     if page.get_links():
         # A damaged xref can make delete_link silently do nothing. Drop the
         # whole annotation array instead.
-        page.parent.xref_set_key(page.xref, "Annots", "[]")
+        doc.xref_set_key(page.xref, "Annots", "[]")
     return link_rects, label_rects
 
 
@@ -120,7 +123,7 @@ def _wrapped_matches(page: pymupdf.Page, words: list[Word]) -> int:
         blocks.setdefault(word.block, []).append(word)
 
     for block_words in blocks.values():
-        ordered: list[Word] = sorted(block_words, key=lambda w: (w.line, w.index))
+        ordered: list[Word] = sorted(block_words, key=lambda w: (w.line, w.word_no))
         text: str = ""
         offsets: list[tuple[int, int, Word]] = []
         prev_line: int | None = None
@@ -184,9 +187,9 @@ def _sweep_underlines(
     for band in bands:
         page.add_redact_annot(band + pymupdf.Rect(-1, -1, 1, 2))
     page.apply_redactions(
-        images=pymupdf.PDF_REDACT_IMAGE_NONE,
-        graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_COVERED,
-        text=pymupdf.PDF_REDACT_TEXT_NONE,
+        images=M.REDACT_IMAGE_NONE,
+        graphics=M.REDACT_LINE_ART_REMOVE_IF_COVERED,
+        text=M.REDACT_TEXT_NONE,
     )
 
 
@@ -222,16 +225,16 @@ def _remove_photos(doc: pymupdf.Document, xrefs: list[int]) -> int:
     """
     removed: int = 0
     for xref in xrefs:
-        for page in doc:
+        for page in M.pages(doc):
             rects: list[pymupdf.Rect] = page.get_image_rects(xref)
             if not rects:
                 continue
             for rect in rects:
                 page.add_redact_annot(rect)
             page.apply_redactions(
-                images=pymupdf.PDF_REDACT_IMAGE_REMOVE,
-                graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
-                text=pymupdf.PDF_REDACT_TEXT_NONE,
+                images=M.REDACT_IMAGE_REMOVE,
+                graphics=M.REDACT_LINE_ART_NONE,
+                text=M.REDACT_TEXT_NONE,
             )
             removed += len(rects)
     return removed
@@ -286,16 +289,11 @@ def redact_pdf(
     sre = surname_re(tokens)
     hits: int = 0
 
-    for pno, page in enumerate(doc):
-        link_rects, label_rects = _strip_links(page)
+    for pno, page in enumerate(M.pages(doc)):
+        link_rects, label_rects = _strip_links(doc, page)
 
         # Font details of the original spans, needed only if a name is restored.
-        span_info: list[dict] = [
-            span
-            for block in page.get_text("dict")["blocks"]
-            for line in block.get("lines", [])
-            for span in line.get("spans", [])
-        ]
+        span_info: list[dict] = M.page_spans(page)
         words: list[Word] = _page_words(page)
         restorations: list[tuple[pymupdf.Rect, dict]] = []
         struck: dict[LineKey, list[pymupdf.Rect]] = {}
@@ -356,9 +354,9 @@ def redact_pdf(
         # coloured header bands survive; the underline sweep that follows is
         # the one place line art is allowed to go.
         page.apply_redactions(
-            images=pymupdf.PDF_REDACT_IMAGE_NONE,
-            graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
-            text=pymupdf.PDF_REDACT_TEXT_REMOVE,
+            images=M.REDACT_IMAGE_NONE,
+            graphics=M.REDACT_LINE_ART_NONE,
+            text=M.REDACT_TEXT_REMOVE,
         )
         _sweep_underlines(page, link_rects, struck)
         if keep:

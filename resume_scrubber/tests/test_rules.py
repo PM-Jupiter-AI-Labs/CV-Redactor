@@ -132,7 +132,9 @@ def test_regex_token_matches_only_in_context() -> None:
 
 
 def test_surname_matches_across_a_line_break() -> None:
-    assert surname_re(["Emoe Kabu"]).search("Benedict Emoe\nKabu") is not None
+    sre = surname_re(["Emoe Kabu"])
+    assert sre is not None
+    assert sre.search("Benedict Emoe\nKabu") is not None
 
 
 def test_no_tokens_means_no_matcher() -> None:

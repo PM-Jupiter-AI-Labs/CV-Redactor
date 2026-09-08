@@ -34,6 +34,7 @@ from docx import Document
 
 from . import config as C
 from . import patterns as P
+from . import pymupdf_compat as M
 from .names import OUT_NAME, SURNAMES
 from .rules import surname_re
 
@@ -92,7 +93,7 @@ def text_of(path: Path) -> str:
 
     doc: pymupdf.Document = pymupdf.open(path)
     try:
-        return "\n".join(page.get_text("text") for page in doc)
+        return "\n".join(M.page_text(page) for page in M.pages(doc))
     finally:
         doc.close()
 
@@ -166,7 +167,7 @@ def pdf_annotations_and_metadata(path: Path) -> list[str]:
     found: list[str] = []
     doc: pymupdf.Document = pymupdf.open(path)
     try:
-        for page in doc:
+        for page in M.pages(doc):
             found += [
                 f"LINK ANNOTATION: {link['uri']}"
                 for link in page.get_links()
@@ -188,7 +189,7 @@ def possible_photos(path: Path) -> list[str]:
     notes: list[str] = []
     doc: pymupdf.Document = pymupdf.open(path)
     try:
-        for page in doc:
+        for page in M.pages(doc):
             page_area: float = page.rect.get_area() or 1.0
             for image in page.get_images(full=True):
                 width, height = image[2], image[3]

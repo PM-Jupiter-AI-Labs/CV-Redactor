@@ -17,6 +17,7 @@ import pymupdf
 from docx import Document
 
 from . import config as C
+from . import pymupdf_compat as M
 from .names import SURNAMES
 
 #: How many non-blank lines of the first page to show.
@@ -38,7 +39,7 @@ def head(path: Path) -> tuple[str, int]:
 
     doc: pymupdf.Document = pymupdf.open(path)
     try:
-        return doc[0].get_text("text"), doc.page_count
+        return M.page_text(doc[0]), doc.page_count
     finally:
         doc.close()
 

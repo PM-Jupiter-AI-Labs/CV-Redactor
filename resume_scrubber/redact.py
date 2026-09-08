@@ -24,6 +24,7 @@ import pymupdf
 
 from . import Result
 from . import config as C
+from . import pymupdf_compat as M
 from .docx_redact import redact_docx
 from .names import OUT_NAME, PHOTOS, REINSERT, SURNAMES
 from .pdf_redact import redact_pdf
@@ -53,7 +54,7 @@ def has_text_layer(path: Path) -> bool:
     """True if the PDF carries extractable text, false if it is a scan."""
     doc: pymupdf.Document = pymupdf.open(path)
     try:
-        return any(page.get_text("text").strip() for page in doc)
+        return any(M.page_text(page).strip() for page in M.pages(doc))
     finally:
         doc.close()
 

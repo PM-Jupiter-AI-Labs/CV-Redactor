@@ -24,6 +24,7 @@ from PIL import Image
 from . import Result
 from . import config as C
 from . import patterns as P
+from . import pymupdf_compat as M
 from .rules import Span, redact_spans, surname_re
 
 #: RapidOCR loads ~90 MB of ONNX models, so build it once and only on demand:
@@ -84,7 +85,7 @@ def redact_scanned(src: str, dst: str, tokens: list[str], first: str | None = No
     sre: re.Pattern[str] | None = surname_re(tokens)
     hits: int = 0
 
-    for pno, page in enumerate(doc):
+    for pno, page in enumerate(M.pages(doc)):
         image: np.ndarray = page_image(page)
         height: int = image.shape[0]
         result, _ = engine()(image)
