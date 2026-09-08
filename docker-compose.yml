@@ -1,0 +1,38 @@
+# Both halves on one host. This is the arrangement to use when you want the API
+# and the UI together:
+#
+#   docker compose up --build
+#   UI  http://localhost:8501
+#   API http://localhost:8000/docs
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Only the UI calls this, so it needs no other browser origin.
+      CV_REDACTOR_CORS_ORIGINS: "http://localhost:8501"
+      CV_REDACTOR_MAX_UPLOAD_MB: "25"
+      CV_REDACTOR_MAX_FILES: "200"
+      # Set to 0 to refuse scanned PDFs and skip loading the OCR models.
+      CV_REDACTOR_ENABLE_OCR: "1"
+    restart: unless-stopped
+
+  ui:
+    build: .
+    command:
+      - streamlit
+      - run
+      - frontend/ui/app.py
+      - --server.port=8501
+      - --server.address=0.0.0.0
+      - --server.headless=true
+    ports:
+      - "8501:8501"
+    environment:
+      # The service name, not localhost: the UI container is not the API one.
+      CV_REDACTOR_API_URL: "http://api:8000"
+    depends_on:
+      - api
+    restart: unless-stopped

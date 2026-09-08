@@ -1,0 +1,12 @@
+# Never build candidate data into an image.
+original_cv/
+redacted_cv/
+issues/
+
+.git/
+.venv/
+resume_scrubber/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+*.pyc

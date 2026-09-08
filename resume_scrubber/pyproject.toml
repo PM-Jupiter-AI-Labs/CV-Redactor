@@ -17,6 +17,15 @@ dev = [
     "pytest>=8.3.0",
     "ruff>=0.8.0",
 ]
+# The web frontend. Not needed by the command line, so it is a separate group:
+# `uv sync --project resume_scrubber --group frontend`.
+frontend = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "streamlit>=1.40.0",
+    "httpx>=0.28.0",
+]
 
 [tool.uv]
 # Run from the repository root as `python -m resume_scrubber.<tool>`; there is
@@ -26,6 +35,8 @@ package = false
 [tool.ruff]
 line-length = 95
 target-version = "py312"
+# The frontend lives beside the package and shares its configuration.
+extend-exclude = [".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN", "BLE", "SLF"]

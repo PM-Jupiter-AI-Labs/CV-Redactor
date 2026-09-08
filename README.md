@@ -64,6 +64,20 @@ uv run --project resume_scrubber python -m resume_scrubber.verify
 Exits `0` on a clean audit, `1` if anything leaked. **Then open two or three
 output pages and look at them** — see [Verifying](#verifying) for why.
 
+### Web interface
+
+There is also a browser front end -- a FastAPI service and a Streamlit app --
+for people who should not have to edit `names.py`:
+
+```bash
+uv sync --project resume_scrubber --group frontend
+uv run --project resume_scrubber uvicorn frontend.api.main:app    # terminal 1
+uv run --project resume_scrubber streamlit run frontend/ui/app.py # terminal 2
+```
+
+Or `docker compose up --build` for both. See [frontend/README.md](frontend/README.md),
+which also covers what can and cannot be hosted on Streamlit Community Cloud.
+
 ### All three commands
 
 | Command | What it does |
@@ -186,6 +200,12 @@ do wrong in ways that look fine:
 ├── README.md
 ├── original_cv/               the source CVs, never modified
 ├── redacted_cv/               output
+├── frontend/                  web interface (see frontend/README.md)
+│   ├── api/                   FastAPI service
+│   ├── ui/                    Streamlit app
+│   └── tests/
+├── Dockerfile                 one image, two entry points
+├── docker-compose.yml         API and UI together
 └── resume_scrubber/           the tool, fully self-contained
     ├── pyproject.toml         dependencies, ruff and pytest config
     ├── uv.lock                resolved versions
