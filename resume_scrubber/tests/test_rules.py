@@ -251,6 +251,29 @@ def test_profile_slug_fragment_goes_with_its_surname() -> None:
     assert redacted("vasu-upadhyay", sre=sre, header=True, first="Vasu").strip() == ""
 
 
+def test_single_letter_words_are_not_debris() -> None:
+    """Regression: the leading "I" of a declaration line read as an icon glyph.
+
+    "I assure that the above-mentioned information is correct..." lost its "I"
+    because a one-character token is normally a leftover initial or an icon.
+    """
+    sre = surname_re(["Mhaske"])
+    line = (
+        "I assure that the above-mentioned information is correct to the "
+        "best of my knowledge. Date: PRIYANKA MHASKE"
+    )
+    assert redacted(line, sre=sre, first="Priyanka").startswith("I assure that")
+
+
+def test_icon_glyphs_are_still_debris() -> None:
+    """The exception above must not save the actual icon glyphs."""
+    sre = surname_re(["Khot"])
+    assert (
+        redacted("§ SUHAS KHOT | +91 8668431256", sre=sre, header=True, first="Suhas")
+        == "SUHAS"
+    )
+
+
 def test_prose_is_not_swept() -> None:
     """Regression: "Social" and "MOBILE" are label words that also occur in titles."""
     sre = surname_re(["Oloritun"])

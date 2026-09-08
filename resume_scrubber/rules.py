@@ -77,13 +77,23 @@ def surviving(line: str, spans: list[Span]) -> list[Chunk]:
     return out
 
 
+#: The two single-letter words English actually has. Everything else that is one
+#: character long inside a contact block is an icon glyph or a stray initial.
+_ONE_LETTER_WORDS: frozenset[str] = frozenset({"i", "a"})
+
+
 def _is_word(token: str) -> bool:
     """True if a token carries meaning rather than being decoration.
 
     A single character is an icon glyph or a leftover initial, never a word --
-    unless it is a digit, which is carrying a figure ("7+ years").
+    unless it is a digit, which is carrying a figure ("7+ years"), or one of the
+    two letters that is a word on its own. Without that last exception the
+    leading "I" of "I assure that the above information is correct" is read as
+    debris and deleted.
     """
-    return sum(c.isalnum() for c in token) > 1 or any(c.isdigit() for c in token)
+    if sum(c.isalnum() for c in token) > 1 or any(c.isdigit() for c in token):
+        return True
+    return token.strip(".,:;|()").lower() in _ONE_LETTER_WORDS
 
 
 def residue_spans(line: str, spans: list[Span], first: str | None, sweep: bool) -> list[Span]:
