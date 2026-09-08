@@ -1,0 +1,11 @@
+# Candidate data: never commit either side of the redaction.
+original_cv/
+redacted_cv/
+issues/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
