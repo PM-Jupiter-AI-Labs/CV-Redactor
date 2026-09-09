@@ -9,6 +9,28 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class ImageCandidate(BaseModel):
+    """An image in a PDF that might be the candidate's photograph.
+
+    Whether it is a face or a company logo cannot be decided from the file, so
+    every plausible one is reported with a preview and a person chooses. The
+    preview is a small PNG data URI, made from the image the client just
+    uploaded and sent straight back to it.
+    """
+
+    xref: int = Field(description="PDF object id, which is what redaction needs")
+    page: int = Field(description="1-based page the image appears on")
+    width: int
+    height: int
+    looks_like_a_photo: bool = Field(
+        description="Big enough and square enough to be a headshot; a guess, not a verdict"
+    )
+    preview: str | None = Field(
+        default=None,
+        description="data:image/png;base64,... thumbnail, if it could be rendered",
+    )
+
+
 class DocumentSummary(BaseModel):
     """What a scan can tell you about one uploaded CV.
 
@@ -28,6 +50,10 @@ class DocumentSummary(BaseModel):
     )
     suggested_output_name: str = Field(
         description="Filename that keeps the first name and drops the surname"
+    )
+    images: list[ImageCandidate] = Field(
+        default_factory=list,
+        description="Images worth reviewing, so a photograph can be picked out",
     )
     error: str | None = Field(default=None, description="Set if the file could not be read")
 

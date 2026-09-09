@@ -23,10 +23,19 @@ CONTACT_PHONE: str = "+91 98765 43210"
 SURNAME: str = "Sharma"
 
 
-def make_cv(name: str = "PRIYA SHARMA") -> bytes:
+def photo_bytes(size: int = 400, colour: tuple[int, int, int] = (200, 160, 140)) -> bytes:
+    """A plain PNG standing in for a headshot: photo-shaped, not an icon."""
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, size, size), False)
+    pixmap.set_rect(pixmap.irect, colour)
+    return pixmap.tobytes("png")
+
+
+def make_cv(name: str = "PRIYA SHARMA", with_photo: bool = False) -> bytes:
     """A one-page CV with a contact block and a body worth keeping."""
     doc = pymupdf.open()
     page = doc.new_page()
+    if with_photo:
+        page.insert_image(pymupdf.Rect(430, 60, 530, 160), stream=photo_bytes())
     page.insert_text((72, 90), name, fontsize=18)
     page.insert_text(
         (72, 115), f"{CONTACT_EMAIL} | {CONTACT_PHONE} | Pune, India", fontsize=10
@@ -253,3 +262,70 @@ def test_too_many_files_is_refused(monkeypatch: pytest.MonkeyPatch, cv: bytes) -
         assert client.post("/api/v1/scan", files=files).status_code == 413
     finally:
         get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# Photographs
+# ---------------------------------------------------------------------------
+
+
+def image_count(data: bytes) -> int:
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    try:
+        return sum(len(page.get_images(full=True)) for page in M.pages(doc))
+    finally:
+        doc.close()
+
+
+def test_scan_reports_images_so_a_photo_can_be_chosen(client: TestClient) -> None:
+    """Regression: the scan used to say nothing about images at all.
+
+    The UI asked for "photo image ids" as free text, and there was no way to
+    learn what they were, so no photograph could ever be removed through it.
+    """
+    cv = make_cv(with_photo=True)
+    document = client.post("/api/v1/scan", files=upload(cv)).json()["documents"][0]
+    assert document["images"], "scan must report images for the UI to offer"
+
+    photo = document["images"][0]
+    assert photo["looks_like_a_photo"] is True
+    assert photo["xref"] > 0
+    assert photo["page"] == 1
+    assert photo["preview"].startswith("data:image/png;base64,")
+
+
+def test_a_cv_with_no_images_reports_none(client: TestClient, cv: bytes) -> None:
+    document = client.post("/api/v1/scan", files=upload(cv)).json()["documents"][0]
+    assert document["images"] == []
+
+
+def test_the_photo_the_scan_found_can_be_removed(client: TestClient) -> None:
+    """The whole round trip: scan finds it, the plan names it, redaction drops it."""
+    cv = make_cv(with_photo=True)
+    assert image_count(cv) == 1
+
+    document = client.post("/api/v1/scan", files=upload(cv)).json()["documents"][0]
+    xrefs = [i["xref"] for i in document["images"] if i["looks_like_a_photo"]]
+
+    plans = [
+        {
+            "filename": "Priya_Sharma_CV.pdf",
+            "surnames": [SURNAME],
+            "output_name": "Priya_Backend_Engineer.pdf",
+            "photo_xrefs": xrefs,
+        }
+    ]
+    response = client.post(
+        "/api/v1/redact", files=upload(cv), data={"plans": json.dumps(plans)}
+    )
+    with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
+        output = bundle.read("Priya_Backend_Engineer.pdf")
+
+    assert image_count(output) == 0
+
+
+def test_a_photo_is_kept_when_it_is_not_selected(client: TestClient) -> None:
+    """Unticking a logo has to leave it alone."""
+    cv = make_cv(with_photo=True)
+    _, output = redact(client, cv, [SURNAME])  # no photo_xrefs in the plan
+    assert image_count(output) == 1

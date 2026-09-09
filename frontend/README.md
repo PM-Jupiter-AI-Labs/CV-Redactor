@@ -69,6 +69,13 @@ The UI has three steps, and the middle one is the point.
    **This cannot be automated.** Nothing in the word "Sharma" marks it as a name
    rather than a place, so a person has to read the header and say. Suggestions
    come from the filename only and are a starting point, never an answer.
+   Any images in the document are shown here too, as previews with a tick box.
+   Nothing in a PDF marks an image as a face, so this cannot be automatic
+   either: a headshot and a company logo are both just pixels to the tool and
+   obvious to a person. Anything the size and shape of a photograph starts
+   ticked, because leaving a face in is the worse mistake — untick a logo and
+   it stays.
+
 3. **Redact** — download a zip of the results. It contains `manifest.json`
    describing what happened to each file, so the download is self-describing.
 

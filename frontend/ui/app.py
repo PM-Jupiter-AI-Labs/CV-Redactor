@@ -156,6 +156,46 @@ def _step_upload(client: RedactorClient) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _photo_choices(document: dict) -> list[int]:
+    """Show every image in the document and return the ones to delete.
+
+    Nothing in a PDF marks an image as a face, so this cannot be automatic. The
+    preview is the whole point: a headshot and a company logo are both just
+    pixels to the tool, and obvious to a person. Anything the size and shape of
+    a photograph starts ticked, because leaving a face in is the worse mistake;
+    untick a logo and it stays.
+    """
+    images: list[dict] = document.get("images") or []
+    filename: str = document["filename"]
+    if not images:
+        return []
+
+    likely: int = sum(1 for i in images if i["looks_like_a_photo"])
+    st.caption(
+        f"{len(images)} image(s) found"
+        + (f", {likely} the shape of a photograph" if likely else ", none photo-shaped")
+    )
+
+    chosen: list[int] = []
+    for row_start in range(0, len(images), 4):
+        for column, image in zip(
+            st.columns(4), images[row_start : row_start + 4], strict=False
+        ):
+            with column:
+                if image.get("preview"):
+                    st.image(image["preview"], width=110)
+                else:
+                    st.caption("(no preview)")
+                if st.checkbox(
+                    f"{image['width']}x{image['height']}",
+                    value=image["looks_like_a_photo"],
+                    key=f"photo::{filename}::{image['xref']}",
+                    help=f"Delete this image (page {image['page']}, id {image['xref']})",
+                ):
+                    chosen.append(image["xref"])
+    return chosen
+
+
 def _plan_for(document: dict) -> dict:
     """Render one document's row and return the plan the user settled on."""
     filename: str = document["filename"]
@@ -194,16 +234,6 @@ def _plan_for(document: dict) -> dict:
                 key=f"output::{filename}",
                 help="The source filename usually leaks the surname too.",
             )
-            photos_raw: str = st.text_input(
-                "Photo image ids (optional)",
-                value="",
-                key=f"photos::{filename}",
-                help=(
-                    "Comma-separated PDF image xrefs to delete, for a headshot. "
-                    "Leave empty unless you know the ids."
-                ),
-            )
-
         surnames: list[str] = [s.strip() for s in surnames_raw.split(",") if s.strip()]
         if not surnames:
             st.warning(
@@ -212,13 +242,7 @@ def _plan_for(document: dict) -> dict:
                 "remain in the document."
             )
 
-        photos: list[int] = []
-        for token in photos_raw.split(","):
-            token = token.strip()
-            if token.isdigit():
-                photos.append(int(token))
-            elif token:
-                st.error(f"'{token}' is not an image id; ids are whole numbers.")
+        photos: list[int] = _photo_choices(document)
 
     return {
         "filename": filename,

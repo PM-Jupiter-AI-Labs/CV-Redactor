@@ -12,6 +12,7 @@ than `resume_scrubber.redact.process`.
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import logging
@@ -40,6 +41,7 @@ from .schemas import (
     AuditFinding,
     DocumentSummary,
     FileResult,
+    ImageCandidate,
     RedactionPlan,
     RedactResponse,
     VerifyResponse,
@@ -52,6 +54,19 @@ SUPPORTED_SUFFIXES: frozenset[str] = frozenset({".pdf", ".docx"})
 
 #: How many lines of the first page a person needs in order to spot the surname.
 HEADER_LINES: int = 14
+
+#: Longest edge of a preview thumbnail, in pixels. Big enough to tell a face
+#: from a logo at a glance, small enough that a page of them is not a download.
+THUMBNAIL_PX: int = 120
+
+#: A design-heavy CV can carry a hundred images. Report the plausible ones and
+#: stop; past this many, the answer is the command line, not a wall of tick
+#: boxes.
+MAX_IMAGE_CANDIDATES: int = 24
+
+#: Below this, in pixels per side, an image is an icon: a mail glyph, a bullet,
+#: a logo. Matches the threshold `verify` uses when it flags possible photos.
+MIN_PHOTO_PX: int = 150
 
 
 class UnsupportedFile(ValueError):
@@ -140,6 +155,72 @@ def suggest_surnames(filename: str) -> list[str]:
     ]
 
 
+def _thumbnail(doc: pymupdf.Document, xref: int) -> str | None:
+    """A small PNG data URI for one embedded image, or None if it will not render.
+
+    Some images are masks, separations or otherwise not directly renderable;
+    those are worth listing but not worth failing a scan over.
+    """
+    try:
+        pixmap: pymupdf.Pixmap = pymupdf.Pixmap(doc, xref)
+        # CMYK and other non-RGB spaces have to be converted before they can be
+        # written as PNG.
+        if pixmap.n - pixmap.alpha >= 4:
+            pixmap = pymupdf.Pixmap(pymupdf.csRGB, pixmap)
+        # shrink() halves each time, which is cheap and good enough for a preview.
+        while max(pixmap.width, pixmap.height) > THUMBNAIL_PX * 2:
+            pixmap.shrink(1)
+        encoded: str = base64.b64encode(pixmap.tobytes("png")).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    except Exception as exc:  # noqa: BLE001 - a preview is a convenience, not the job
+        log.debug("no preview for xref %s: %s", xref, exc)
+        return None
+
+
+def _image_candidates(doc: pymupdf.Document) -> list[ImageCandidate]:
+    """Every image a person might need to look at, largest first.
+
+    Nothing in a PDF says "this is a face". The size and shape heuristic only
+    sorts the likely from the unlikely; the preview is what actually lets the
+    decision be made, so both are sent.
+    """
+    seen: set[int] = set()
+    candidates: list[ImageCandidate] = []
+
+    for number, page in enumerate(M.pages(doc), start=1):
+        page_area: float = page.rect.get_area() or 1.0
+        for image in page.get_images(full=True):
+            xref, width, height = image[0], image[2], image[3]
+            if xref in seen or not width or not height:
+                continue
+            seen.add(xref)
+
+            rects = page.get_image_rects(xref)
+            covers_page: bool = bool(rects) and rects[0].get_area() / page_area > 0.8
+            looks_like_a_photo: bool = (
+                width >= MIN_PHOTO_PX
+                and height >= MIN_PHOTO_PX
+                and 0.5 <= width / height <= 2.0
+                # A full-page image is the scan itself, not a headshot on a page.
+                and not covers_page
+            )
+            candidates.append(
+                ImageCandidate(
+                    xref=xref,
+                    page=number,
+                    width=width,
+                    height=height,
+                    looks_like_a_photo=looks_like_a_photo,
+                    preview=_thumbnail(doc, xref),
+                )
+            )
+
+    # Likely photographs first, then biggest, so the interesting ones survive
+    # the cap and appear at the top of the list.
+    candidates.sort(key=lambda c: (not c.looks_like_a_photo, -(c.width * c.height)))
+    return candidates[:MAX_IMAGE_CANDIDATES]
+
+
 def scan_document(filename: str, data: bytes) -> DocumentSummary:
     """Read one CV well enough for a person to decide what to redact."""
     name: str = _safe_name(filename)
@@ -165,6 +246,7 @@ def scan_document(filename: str, data: bytes) -> DocumentSummary:
                 summary.has_text_layer = any(
                     M.page_text(page).strip() for page in M.pages(doc)
                 )
+                summary.images = _image_candidates(doc)
             finally:
                 doc.close()
 

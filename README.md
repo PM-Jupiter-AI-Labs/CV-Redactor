@@ -177,7 +177,7 @@ do wrong in ways that look fine:
 | Contact scaffolding | The residue a stripped contact block leaves: field labels (`Email:`, `Phone number -`), dead link text (`LinkedIn`, `Portfolio`), icon glyphs, orphaned `\|` and `•` separators, and the underline the link was drawn with. |
 | Home address | Street lines, PIN codes, uppercase state codes, and the city/state/country on the contact line. |
 | Personal details | Date of birth, marital status, gender and age, nationality, passport, father's name. |
-| Photographs | Headshots are deleted from the file. |
+| Photographs | Headshots are deleted from the file. The web UI previews every image and lets you tick which to remove; the command line takes image ids from `PHOTOS` in `names.py`. |
 | Hidden copies | PDF metadata, XMP, bookmarks, tagged-structure tree, embedded files; DOCX core properties and hyperlink targets. |
 
 ## What is deliberately kept
