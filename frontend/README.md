@@ -21,16 +21,16 @@ frontend/
 
 ## Running it locally
 
-> Two things that will bite you if you improvise the commands, both learned the
-> hard way:
+> **Keep `--project resume_scrubber` on every `uv` command.** The dependencies
+> live in that project; `uv run` from the repository root resolves against a
+> different environment.
 >
-> - **Launch the UI through `streamlit_app.py` at the repository root**, not
->   `frontend/ui/app.py`. `streamlit run` puts the *script's own directory* on
->   `sys.path`, so pointing it into the package leaves the package root off the
->   path and the app fails with `No module named 'frontend'`.
-> - **Keep `--project resume_scrubber` on every `uv` command.** The
->   dependencies live in that project; `uv run` from the repository root would
->   otherwise resolve against a different environment.
+> Either UI entry point works -- `streamlit run streamlit_app.py` or
+> `streamlit run frontend/ui/app.py`. They are not equivalent by accident:
+> `streamlit run` puts the *script's own directory* on `sys.path` rather than
+> the directory you ran it from, so `app.py` adds the repository root itself.
+> The root launcher is still the one to deploy, because it is the filename
+> Streamlit Community Cloud looks for.
 
 Install the frontend dependencies (they are a separate group, so the command
 line stays lean):

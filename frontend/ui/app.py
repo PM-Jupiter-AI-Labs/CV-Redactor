@@ -1,12 +1,12 @@
 """Streamlit front end for the CV redactor.
 
-Launched through the repository-root `streamlit_app.py`, not directly:
+Either of these works:
 
-    streamlit run streamlit_app.py
+    streamlit run streamlit_app.py        # the repository-root launcher
+    streamlit run frontend/ui/app.py      # this file, directly
 
-`streamlit run` puts the script's own directory on sys.path, so running this
-file directly leaves the package root off it and `frontend.ui.client` cannot be
-imported. The launcher exists to put the repository root there instead.
+The launcher is what Streamlit Community Cloud looks for by default; the
+sys.path note below is what makes the second form work too.
 
 Three steps, matching the command line and the API:
 
@@ -26,12 +26,24 @@ keeps nothing, so the same files are posted for the scan and for the redaction.
 from __future__ import annotations
 
 import io
+import sys
 import zipfile
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
-from frontend.ui.client import ApiError, RedactorClient
+# `streamlit run` puts the *script's own directory* on sys.path, not the
+# directory it was run from. Launched as `streamlit run frontend/ui/app.py`
+# that is frontend/ui/, so the `frontend` package itself would not be
+# importable and the next line would fail with "No module named 'frontend'".
+# Putting the repository root on the path here makes every entry point work:
+# this file by path, streamlit_app.py at the root, and an ordinary import.
+_REPO_ROOT: Path = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from frontend.ui.client import ApiError, RedactorClient  # noqa: E402
 
 PAGE_TITLE: str = "CV Redactor"
 SUPPORTED: list[str] = ["pdf", "docx"]

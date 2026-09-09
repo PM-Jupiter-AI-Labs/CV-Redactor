@@ -204,7 +204,7 @@ do wrong in ways that look fine:
 │   ├── api/                   FastAPI service
 │   ├── ui/                    Streamlit app
 │   └── tests/
-├── streamlit_app.py           UI entry point (run this, not frontend/ui/app.py)
+├── streamlit_app.py           UI entry point, and what Community Cloud expects
 ├── ruff.toml  pytest.ini      repo-wide lint and test configuration
 ├── Dockerfile                 one image, two entry points
 ├── docker-compose.yml         API and UI together
