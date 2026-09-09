@@ -1,6 +1,12 @@
 """Streamlit front end for the CV redactor.
 
-    streamlit run frontend/ui/app.py
+Launched through the repository-root `streamlit_app.py`, not directly:
+
+    streamlit run streamlit_app.py
+
+`streamlit run` puts the script's own directory on sys.path, so running this
+file directly leaves the package root off it and `frontend.ui.client` cannot be
+imported. The launcher exists to put the repository root there instead.
 
 Three steps, matching the command line and the API:
 

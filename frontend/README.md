@@ -21,6 +21,17 @@ frontend/
 
 ## Running it locally
 
+> Two things that will bite you if you improvise the commands, both learned the
+> hard way:
+>
+> - **Launch the UI through `streamlit_app.py` at the repository root**, not
+>   `frontend/ui/app.py`. `streamlit run` puts the *script's own directory* on
+>   `sys.path`, so pointing it into the package leaves the package root off the
+>   path and the app fails with `No module named 'frontend'`.
+> - **Keep `--project resume_scrubber` on every `uv` command.** The
+>   dependencies live in that project; `uv run` from the repository root would
+>   otherwise resolve against a different environment.
+
 Install the frontend dependencies (they are a separate group, so the command
 line stays lean):
 
@@ -35,7 +46,7 @@ Then two terminals:
 uv run --project resume_scrubber uvicorn frontend.api.main:app --reload
 
 # 2. the UI
-uv run --project resume_scrubber streamlit run frontend/ui/app.py
+uv run --project resume_scrubber streamlit run streamlit_app.py
 ```
 
 UI at <http://localhost:8501>, interactive API docs at

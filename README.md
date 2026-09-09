@@ -72,7 +72,7 @@ for people who should not have to edit `names.py`:
 ```bash
 uv sync --project resume_scrubber --group frontend
 uv run --project resume_scrubber uvicorn frontend.api.main:app    # terminal 1
-uv run --project resume_scrubber streamlit run frontend/ui/app.py # terminal 2
+uv run --project resume_scrubber streamlit run streamlit_app.py   # terminal 2
 ```
 
 Or `docker compose up --build` for both. See [frontend/README.md](frontend/README.md),
@@ -204,6 +204,8 @@ do wrong in ways that look fine:
 │   ├── api/                   FastAPI service
 │   ├── ui/                    Streamlit app
 │   └── tests/
+├── streamlit_app.py           UI entry point (run this, not frontend/ui/app.py)
+├── ruff.toml  pytest.ini      repo-wide lint and test configuration
 ├── Dockerfile                 one image, two entry points
 ├── docker-compose.yml         API and UI together
 └── resume_scrubber/           the tool, fully self-contained

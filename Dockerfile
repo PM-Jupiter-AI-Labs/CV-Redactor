@@ -4,7 +4,7 @@
 #   docker build -t cv-redactor .
 #   docker run -p 8000:8000 cv-redactor
 #   docker run -p 8501:8501 -e CV_REDACTOR_API_URL=http://host:8000 cv-redactor \
-#       streamlit run frontend/ui/app.py --server.port 8501 --server.address 0.0.0.0
+#       streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0
 FROM python:3.12-slim
 
 # uv installs exactly the locked dependency set the developers use.
@@ -25,7 +25,7 @@ RUN uv sync --project resume_scrubber --group frontend --no-dev
 
 COPY resume_scrubber/ ./resume_scrubber/
 COPY frontend/ ./frontend/
-COPY pyproject.toml README.md ./
+COPY streamlit_app.py README.md ./
 
 # Run as a non-root user: this process opens files handed to it by strangers.
 RUN useradd --create-home --uid 10001 redactor && chown -R redactor:redactor /app

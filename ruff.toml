@@ -1,0 +1,20 @@
+# Lint and format configuration for the whole repository, both packages.
+#
+# Deliberately ruff.toml rather than a root pyproject.toml: a pyproject.toml
+# here makes uv treat the repository root as its own project, so `uv run`
+# without --project silently builds a second, empty .venv with none of the
+# dependencies in it.
+
+line-length = 95
+target-version = "py312"
+extend-exclude = [".venv", "resume_scrubber/.venv"]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "ANN", "BLE", "SLF"]
+ignore = ["ANN401", "E501", "RUF001", "RUF002", "RUF003"]
+
+[lint.per-file-ignores]
+"resume_scrubber/names.py" = ["E501"]
+"**/tests/*" = ["ANN001", "ANN201", "ANN003", "SLF"]
+# File()/Form() in an argument default is how FastAPI declares a parameter.
+"frontend/api/main.py" = ["B008"]
