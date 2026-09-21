@@ -1,19 +1,19 @@
 # Dependencies for Streamlit Community Cloud, which installs from this file.
 #
-# GENERATED -- do not hand-edit. Regenerate after changing resume_scrubber's
-# dependencies, and commit the result:
+# GENERATED -- do not hand-edit. Regenerate after changing dependencies:
 #
-#   uv export --project resume_scrubber --group frontend --no-dev \
+#   uv export --project resume_scrubber --no-default-groups --group frontend \
 #       --no-hashes --no-emit-project --format requirements-txt \
 #       | tail -n +3 > requirements.txt
 #
-# CI checks this file matches the lockfile, so a drift is a failed build rather
-# than a deployment that installs different versions from the ones tested.
+# CI checks this matches the lockfile, so drift fails the build rather than
+# deploying versions nobody tested.
 #
-# To trim the build: delete rapidocr-onnxruntime, onnxruntime, opencv-python
-# and pillow, delete packages.txt, and set CV_REDACTOR_ENABLE_OCR=0. That drops
-# the scanned-PDF path and most of the install; scans then fail loudly instead
-# of passing through unredacted.
+# Note --no-default-groups: it leaves out the `ocr` group, which is most of the
+# install (onnxruntime and opencv) and needs system libraries a slim host does
+# not have. Scanned PDFs are therefore rejected with a clear error here rather
+# than redacted. Set CV_REDACTOR_ENABLE_OCR=0 in the app's secrets to say so up
+# front. The command line and the Docker image still have the full OCR path.
 altair==6.2.2
     # via streamlit
 annotated-doc==0.0.5
@@ -41,11 +41,7 @@ click==8.5.0
     # via
     #   streamlit
     #   uvicorn
-colorama==0.4.6 ; sys_platform == 'win32'
-    # via tqdm
 fastapi==0.141.1
-flatbuffers==25.12.19
-    # via onnxruntime
 h11==0.16.0
     # via
     #   httpcore
@@ -80,37 +76,21 @@ narwhals==2.25.0
     # via altair
 numpy==2.5.3
     # via
-    #   onnxruntime
-    #   opencv-python
     #   pandas
     #   pydeck
-    #   rapidocr-onnxruntime
-    #   shapely
     #   streamlit
-onnxruntime==1.29.0
-    # via rapidocr-onnxruntime
-opencv-python==5.0.0.93
-    # via rapidocr-onnxruntime
 packaging==26.3
     # via
     #   altair
-    #   onnxruntime
     #   streamlit
 pandas==3.0.5
     # via streamlit
 pillow==12.3.0
-    # via
-    #   rapidocr-onnxruntime
-    #   resume-scrubber
-    #   streamlit
+    # via streamlit
 protobuf==7.36.1
-    # via
-    #   onnxruntime
-    #   streamlit
+    # via streamlit
 pyarrow==25.0.1
     # via streamlit
-pyclipper==1.4.0
-    # via rapidocr-onnxruntime
 pydantic==2.13.5
     # via fastapi
 pydantic-core==2.46.5
@@ -128,11 +108,7 @@ python-dotenv==1.2.3
 python-multipart==0.0.32
     # via streamlit
 pyyaml==6.0.3
-    # via
-    #   rapidocr-onnxruntime
-    #   uvicorn
-rapidocr-onnxruntime==1.4.4
-    # via resume-scrubber
+    # via uvicorn
 referencing==0.37.0
     # via
     #   jsonschema
@@ -143,12 +119,8 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-shapely==2.1.2
-    # via rapidocr-onnxruntime
 six==1.17.0
-    # via
-    #   python-dateutil
-    #   rapidocr-onnxruntime
+    # via python-dateutil
 starlette==1.6.0
     # via
     #   fastapi
@@ -156,8 +128,6 @@ starlette==1.6.0
 streamlit==1.63.0
 toml==0.10.2
     # via streamlit
-tqdm==4.70.0
-    # via rapidocr-onnxruntime
 typing-extensions==4.16.0
     # via
     #   altair

@@ -51,7 +51,7 @@ jobs:
         # tested. Regenerate with the command in the file's header.
         run: |
           set -euo pipefail
-          uv export --project resume_scrubber --group frontend --no-dev \
+          uv export --project resume_scrubber --no-default-groups --group frontend \
             --no-hashes --no-emit-project --format requirements-txt \
             | tail -n +3 > /tmp/expected.txt
           if ! diff -u <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/expected.txt); then

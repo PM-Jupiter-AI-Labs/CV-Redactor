@@ -36,7 +36,15 @@ def engine() -> Any:
     """The shared RapidOCR instance, constructed on first use."""
     global _engine
     if _engine is None:
-        from rapidocr_onnxruntime import RapidOCR
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+        except ImportError as exc:  # the `ocr` group was not installed
+            raise RuntimeError(
+                "this PDF is a scan, and reading it needs the OCR extra, which "
+                "is not installed here. Install it with `uv sync --project "
+                "resume_scrubber --group ocr`, or set CV_REDACTOR_ENABLE_OCR=0 "
+                "to reject scans instead of attempting them."
+            ) from exc
 
         _engine = RapidOCR()
     return _engine

@@ -6,16 +6,24 @@ requires-python = ">=3.12"
 dependencies = [
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
-    # OCR path for scanned, image-only PDFs. Drop these two if you never need it:
-    # nothing else imports them, and they are most of the venv's ~440 MB.
-    "rapidocr-onnxruntime>=1.4.4",
-    "pillow>=11.0.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
     "ruff>=0.8.0",
+]
+# The scanned-PDF path. Its own group because it is most of the install --
+# rapidocr pulls in onnxruntime and opencv, several hundred megabytes between
+# them, and opencv needs system libraries that a slim host may not have. It is
+# a default group, so a normal `uv sync` and the Docker image still get it;
+# only a deployment that explicitly opts out goes without.
+#
+# Without it, a scanned PDF raises a clear error instead of being passed
+# through unredacted, which is the failure you want.
+ocr = [
+    "rapidocr-onnxruntime>=1.4.4",
+    "pillow>=11.0.0",
 ]
 # The web frontend. Not needed by the command line, so it is a separate group:
 # `uv sync --project resume_scrubber --group frontend`.
@@ -31,6 +39,9 @@ frontend = [
 # Run from the repository root as `python -m resume_scrubber.<tool>`; there is
 # nothing to build or install.
 package = false
+# `ocr` here means a plain `uv sync` behaves exactly as it did when those two
+# were ordinary dependencies. Pass --no-default-groups to leave it out.
+default-groups = ["dev", "ocr"]
 
 [tool.ruff]
 line-length = 95

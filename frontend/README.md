@@ -193,11 +193,14 @@ is the straightforward way to get one.
 
 `rapidocr-onnxruntime` pulls in onnxruntime, which is most of a **474 MB**
 environment. That is fine on a container host and uncomfortable on a free tier.
-If your CVs are never scans, drop `rapidocr-onnxruntime` and `pillow` from
-`resume_scrubber/pyproject.toml` and set `CV_REDACTOR_ENABLE_OCR=0`; nothing
-else imports them, and the deployment gets a great deal smaller. Scanned PDFs
-are then reported as errors instead of being silently passed through
-unredacted, which is the right failure.
+Those now live in the `ocr` dependency group, so a deployment can leave them
+out: `uv sync --no-default-groups --group frontend` installs 52 packages
+instead of 176. That is how the Streamlit Community Cloud build is generated.
+Set `CV_REDACTOR_ENABLE_OCR=0` alongside it, and scanned PDFs are reported as
+errors rather than passed through unredacted — the right failure.
+
+`ocr` is a *default* group, so a normal `uv sync` and the Docker image are
+unaffected and still handle scans.
 
 ### Before you put candidate CVs on a public host
 

@@ -55,9 +55,8 @@ when you sign in.
    - **App URL** — whatever subdomain you want.
 5. **Deploy.**
 
-The first build takes 5–15 minutes: `requirements.txt` has 176 packages and
-onnxruntime is a large one. Watch the log pane on the right — it streams pip's
-output, and any failure shows up there.
+The build takes a couple of minutes — 52 packages, no compiled monsters. Watch
+the log pane on the right; it streams pip's output and any failure shows there.
 
 ## Step 3 — Settings (optional)
 
@@ -68,11 +67,15 @@ output, and any failure shows up there.
   app reads them:
 
   ```toml
+  CV_REDACTOR_ENABLE_OCR = "0"
   CV_REDACTOR_MAX_FILES = "25"
   CV_REDACTOR_MAX_UPLOAD_MB = "10"
   ```
 
-  Worth lowering both on free hardware. A fifty-CV batch will run out of memory.
+  `CV_REDACTOR_ENABLE_OCR = "0"` is worth setting: this deployment has no OCR
+  (see below), and with it set the app says so in the sidebar rather than
+  letting someone upload a scan and hit an error. Lower the other two on free
+  hardware — a fifty-CV batch will run out of memory.
 
 ---
 
@@ -101,29 +104,34 @@ nowhere to put it.
 |---|---|
 | `streamlit_app.py` | Entry point. Community Cloud looks for this name. |
 | `requirements.txt` | What Community Cloud installs. Generated from `uv.lock`; CI fails if they drift. |
-| `packages.txt` | apt packages. `opencv-python` (via the OCR path) needs libGL, which is not in the base image. |
 | `.streamlit/config.toml` | Upload cap, matching the app's own limit. |
 
 ---
 
-## Making the build smaller
+## No OCR here, on purpose
 
-Most of the install is the scanned-PDF path: `rapidocr-onnxruntime` pulls in
-`onnxruntime` and `opencv-python`, several hundred megabytes between them. If
-your CVs are never scans:
+`requirements.txt` is generated with `--no-default-groups`, which leaves out the
+`ocr` dependency group. That drops `rapidocr-onnxruntime`, and with it
+`onnxruntime` and `opencv-python` — 176 packages become 52, and the build goes
+from many minutes to a couple.
 
-1. Delete `rapidocr-onnxruntime`, `onnxruntime`, `opencv-python` and `pillow`
-   from `requirements.txt`.
-2. Delete `packages.txt` — it only exists for opencv.
-3. Add `CV_REDACTOR_ENABLE_OCR = "0"` to the app's secrets.
+It also removes a whole class of failure. `opencv-python` links against libGL,
+which is not in Community Cloud's image, so it needs an apt package to work at
+all. No opencv, no `packages.txt`, nothing to get wrong.
 
-The build gets much faster, and a scanned PDF then fails with a clear message
-instead of being passed through unredacted. That is the right failure: silently
-returning an unredacted scan is the worst thing this tool could do.
+The cost is that a scanned PDF cannot be read here. It fails with a message
+saying so, rather than being passed through unredacted — which is the right way
+round: silently returning an unredacted scan is the worst thing this tool could
+do.
 
-Note that CI's requirements check will then fail, because the file no longer
-matches the lockfile. Either drop that step, or move the OCR dependencies into
-their own group in `resume_scrubber/pyproject.toml` so the export omits them.
+The command line and the Docker image still have the full OCR path; `ocr` is a
+default group, so only a deployment that explicitly opts out goes without it.
+
+To put OCR back on Community Cloud you would need `rapidocr-onnxruntime` in
+`requirements.txt` and a `packages.txt` containing `libgl1` — and
+**`packages.txt` must contain package names only, one per line, with no
+comments.** Streamlit pipes the whole file to `apt-get install`, so a `#`
+comment becomes a package name and the build fails.
 
 ---
 
@@ -134,12 +142,13 @@ The main file path is wrong. It must be `streamlit_app.py` at the repository
 root, not `frontend/ui/app.py`. `streamlit run` puts the script's own directory
 on `sys.path`, so only the root launcher makes the package importable.
 
-**`ImportError: libGL.so.1: cannot open shared object file`**
-`packages.txt` is missing or was not picked up. It must be at the repository
-root. Reboot the app from its menu after adding it.
+**`E: Unable to locate package <some word from a comment>`**
+A `packages.txt` with comments in it. Streamlit passes every line to
+`apt-get install`, so comments become package names. Package names only, one
+per line. This deployment needs no `packages.txt` at all.
 
 **The build hangs or is killed while installing.**
-Resource limits. Trim the OCR dependencies as above.
+Resource limits. Check nothing has re-added the OCR dependencies.
 
 **`SyntaxError` on `X | None` or similar.**
 The app is on an old Python. Set Python 3.12 in the app's settings; it cannot
