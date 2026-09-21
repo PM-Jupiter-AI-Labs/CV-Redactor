@@ -1,0 +1,46 @@
+name: CI
+
+# Runs on every push and pull request. The deploy workflow waits for this, so a
+# red build never reaches the Space.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call: # lets deploy-huggingface.yml reuse this job
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: resume_scrubber/uv.lock
+
+      - name: Install dependencies
+        # --frozen fails if uv.lock is out of date with pyproject.toml, which is
+        # the failure you want: a lockfile drifting from its manifest means CI
+        # and the image are testing different versions.
+        run: uv sync --project resume_scrubber --group frontend --frozen
+
+      - name: Lint
+        run: uv run --project resume_scrubber ruff check .
+
+      - name: Format
+        run: uv run --project resume_scrubber ruff format --check .
+
+      - name: Test
+        run: uv run --project resume_scrubber pytest
+
+      - name: Type check
+        run: uvx pyright --pythonpath resume_scrubber/.venv/bin/python resume_scrubber frontend streamlit_app.py

@@ -1,0 +1,128 @@
+name: Deploy to Hugging Face Space
+
+# Pushes a Space-shaped copy of the repository to Hugging Face on every green
+# build of main.
+#
+# A Space is a git repository that must be laid out the way Hugging Face
+# expects: a Dockerfile at its root, and a README.md whose YAML front matter is
+# the Space's configuration. This repository is not laid out that way and should
+# not be -- so rather than contort the project, this job assembles the Space
+# tree from deploy/huggingface/ and pushes that.
+#
+# Set up once, in the repository's Settings:
+#   Secrets  -> HF_TOKEN     a Hugging Face access token with write permission
+#   Variables -> HF_SPACE    the Space, as "owner/name"
+# See deploy/huggingface/DEPLOY.md for the walkthrough.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # lets you redeploy from the Actions tab without a commit
+
+concurrency:
+  group: deploy-huggingface
+  cancel-in-progress: false # never interrupt a push mid-way
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the deployment is configured
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          missing=0
+          [ -z "$HF_TOKEN" ] && { echo "::error::secret HF_TOKEN is not set"; missing=1; }
+          [ -z "$HF_SPACE" ] && { echo "::error::variable HF_SPACE is not set (owner/name)"; missing=1; }
+          if [ "$missing" = "1" ]; then
+            echo "::error::See deploy/huggingface/DEPLOY.md"
+            exit 1
+          fi
+
+      - name: Assemble the Space tree
+        run: |
+          set -euo pipefail
+          mkdir -p space
+
+          # Only what the image needs. Note what is absent: no CV folders, no
+          # tests, no .git -- a Space repository is public by default and this
+          # one must never carry candidate data.
+          cp -r resume_scrubber space/
+          cp -r frontend space/
+          cp streamlit_app.py space/
+          rm -rf space/resume_scrubber/tests space/frontend/tests
+          rm -rf space/resume_scrubber/.venv
+          find space -name __pycache__ -type d -prune -exec rm -rf {} +
+          find space -name '.pytest_cache' -o -name '.ruff_cache' -type d -prune \
+              -exec rm -rf {} + 2>/dev/null || true
+
+          # The Dockerfile and README go at the Space root, which is where
+          # Hugging Face looks for them.
+          cp deploy/huggingface/Dockerfile space/Dockerfile
+          cp deploy/huggingface/README.md space/README.md
+          mkdir -p space/deploy/huggingface
+          cp deploy/huggingface/entrypoint.sh space/deploy/huggingface/entrypoint.sh
+
+          # Record which commit produced this build, so a Space can be traced
+          # back to a revision without guessing.
+          cat >> space/README.md <<EOF
+
+          ---
+
+          Built from [\`${GITHUB_SHA::7}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}).
+          EOF
+
+      - name: Verify the tree carries no candidate data
+        # Cheap, and the one mistake that would actually matter: this job
+        # publishes to a public repository.
+        run: |
+          set -euo pipefail
+          if find space -iname '*.pdf' -o -iname '*.docx' | grep -q .; then
+            echo "::error::the assembled Space tree contains documents; refusing to publish"
+            find space -iname '*.pdf' -o -iname '*.docx'
+            exit 1
+          fi
+          echo "no documents in the tree"
+
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          set -euo pipefail
+          cd space
+          git init -q -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7} from ${GITHUB_REPOSITORY}"
+
+          # Force-push: the Space mirrors main and holds no history of its own.
+          # The token is passed on stdin rather than in the URL so it cannot be
+          # read from the process list or land in a log.
+          git remote add space "https://huggingface.co/spaces/${HF_SPACE}"
+          git -c credential.helper='!f() { echo "username=api"; echo "password=${HF_TOKEN}"; }; f' \
+              push --force space main
+
+      - name: Summary
+        env:
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          {
+            echo "### Deployed to Hugging Face"
+            echo
+            echo "- Space: https://huggingface.co/spaces/${HF_SPACE}"
+            echo "- App: https://$(echo "${HF_SPACE}" | tr '/' '-' | tr '[:upper:]' '[:lower:]').hf.space"
+            echo "- Commit: \`${GITHUB_SHA::7}\`"
+            echo
+            echo "The Space rebuilds on push; watch its **Logs** tab for the build."
+          } >> "$GITHUB_STEP_SUMMARY"

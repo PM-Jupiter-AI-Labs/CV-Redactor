@@ -78,6 +78,16 @@ uv run --project resume_scrubber streamlit run streamlit_app.py   # terminal 2
 Or `docker compose up --build` for both. See [frontend/README.md](frontend/README.md),
 which also covers what can and cannot be hosted on Streamlit Community Cloud.
 
+### Hosting it
+
+`deploy/huggingface/` holds a GitHub Actions pipeline that tests every push to
+`main` and deploys the web interface to a Hugging Face Docker Space. Setup is
+two secrets and a `git push`; see
+[deploy/huggingface/DEPLOY.md](deploy/huggingface/DEPLOY.md).
+
+Read the privacy note there first if the CVs are real — a Space is public by
+default and has no authentication.
+
 ### All three commands
 
 | Command | What it does |
