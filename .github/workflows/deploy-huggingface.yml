@@ -1,7 +1,15 @@
 name: Deploy to Hugging Face Space
 
-# Pushes a Space-shaped copy of the repository to Hugging Face on every green
-# build of main.
+# NOT WIRED UP. Hugging Face now gates Docker Spaces behind a paid plan -- only
+# Static Spaces are free, and a Static Space serves files with no server-side
+# Python, so it cannot host this app at all. The live deployment is Streamlit
+# Community Cloud instead: see deploy/streamlit/DEPLOY.md.
+#
+# This is kept, and runs only when started by hand, so that subscribing to
+# Hugging Face PRO is a one-click deploy rather than a rebuild. Everything in
+# it was tested and works.
+#
+# Pushes a Space-shaped copy of the repository to Hugging Face.
 #
 # A Space is a git repository that must be laid out the way Hugging Face
 # expects: a Dockerfile at its root, and a README.md whose YAML front matter is
@@ -15,9 +23,8 @@ name: Deploy to Hugging Face Space
 # See deploy/huggingface/DEPLOY.md for the walkthrough.
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: # lets you redeploy from the Actions tab without a commit
+  # Manual only, deliberately: see the note above.
+  workflow_dispatch:
 
 concurrency:
   group: deploy-huggingface

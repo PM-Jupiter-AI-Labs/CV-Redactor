@@ -39,14 +39,24 @@ line stays lean):
 uv sync --project resume_scrubber --group frontend
 ```
 
-Then two terminals:
+Then, for the UI on its own — it runs the redactor in this process, no API
+needed:
+
+```bash
+uv run --project resume_scrubber streamlit run streamlit_app.py
+```
+
+Or with the API as a separate service, which is what a split deployment looks
+like. `CV_REDACTOR_API_URL` is what switches the UI onto the HTTP path; without
+it the UI does the work itself and the service you started sits idle:
 
 ```bash
 # 1. the API
 uv run --project resume_scrubber uvicorn frontend.api.main:app --reload
 
 # 2. the UI
-uv run --project resume_scrubber streamlit run streamlit_app.py
+CV_REDACTOR_API_URL=http://127.0.0.1:8000 \
+  uv run --project resume_scrubber streamlit run streamlit_app.py
 ```
 
 UI at <http://localhost:8501>, interactive API docs at
@@ -137,7 +147,7 @@ server that accumulates candidate CVs would be the wrong shape.
 | `CV_REDACTOR_MAX_FILES` | `200` | Largest batch |
 | `CV_REDACTOR_CORS_ORIGINS` | `*` | Comma-separated browser origins |
 | `CV_REDACTOR_ENABLE_OCR` | `1` | `0` refuses scanned PDFs and skips the models |
-| `CV_REDACTOR_API_URL` | `http://127.0.0.1:8000` | Where the **UI** looks for the API |
+| `CV_REDACTOR_API_URL` | unset | Where the **UI** looks for the API. Unset means it runs the redactor itself. |
 
 ---
 
@@ -147,9 +157,14 @@ server that accumulates candidate CVs would be the wrong shape.
 
 | What you want | Docker? | Where |
 |---|---|---|
-| Streamlit UI only, no API | **No** | Streamlit Community Cloud, directly |
+| UI only, no API | **No** | Streamlit Community Cloud — see [deploy/streamlit/DEPLOY.md](../deploy/streamlit/DEPLOY.md) |
 | API + UI, one host | **Yes** | `docker compose up` on Fly.io, Render, Cloud Run, a VM |
 | API + UI, split | **Only for the API** | API on Render/Fly, UI on Community Cloud pointing at it |
+
+Hugging Face Spaces used to be a free Docker option and no longer is: only
+Static Spaces are free now, and a Static Space runs no server-side code at all.
+The tested setup is still in [deploy/huggingface/](../deploy/huggingface/DEPLOY.md)
+for anyone on a paid plan.
 
 ### Why the API cannot go on Streamlit Community Cloud
 
@@ -158,10 +173,21 @@ Streamlit's. You can start uvicorn in the background inside the same container
 and reach it on localhost, but nothing outside can, so you have a UI with a
 private API — which is the same as having no API, with extra moving parts.
 
-So: if the API only exists to serve this UI, drop it and let the Streamlit app
-call `resume_scrubber` directly. If the API is a deliverable in its own right —
-something an ATS or another service will call — it needs a host that runs
-long-lived processes, and Docker is the straightforward way to get one.
+So on a single-process host the UI skips the HTTP hop entirely:
+
+| `CV_REDACTOR_API_URL` | Client | Where the work happens |
+|---|---|---|
+| unset | `LocalClient` | this process |
+| set | `RedactorClient` | the FastAPI service, over HTTP |
+
+`make_client()` chooses; `app.py` is written against whichever it gets. The
+service layer is plain functions over bytes with no FastAPI machinery in it,
+which is what makes the in-process path possible at all — the request handling
+lives in `main.py` and the work lives in `service.py`.
+
+If the API is a deliverable in its own right — something an ATS or another
+service will call — it needs a host that runs long-lived processes, and Docker
+is the straightforward way to get one.
 
 ### The other constraint: size
 

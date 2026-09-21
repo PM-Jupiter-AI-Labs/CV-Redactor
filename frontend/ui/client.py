@@ -1,15 +1,22 @@
-"""HTTP client for the redaction API.
+"""How the UI reaches the redactor.
 
-The UI never imports the redactor. Everything goes through here, so the two
-halves can be deployed on separate hosts -- which is exactly what you have to do
-if the Streamlit app lives on Community Cloud.
+Two implementations of the same four calls:
+
+    RedactorClient  over HTTP, to a FastAPI service that may be on another host
+    LocalClient     in this process, for a host that will only run one
+
+`make_client` picks between them, and `app.py` is written against whichever it
+gets. See local_client.py for why the second one exists.
 """
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import zipfile
 from dataclasses import dataclass
+from typing import Protocol
 
 import httpx
 
@@ -33,6 +40,17 @@ class RedactionBundle:
 
     archive: bytes
     manifest: dict
+
+
+class Client(Protocol):
+    """What the UI needs, whichever side of an HTTP hop the work happens on."""
+
+    base_url: str
+
+    def health(self) -> dict: ...
+    def scan(self, uploads: list[Upload]) -> list[dict]: ...
+    def redact(self, uploads: list[Upload], plans: list[dict]) -> RedactionBundle: ...
+    def verify(self, uploads: list[Upload], plans: list[dict]) -> dict: ...
 
 
 class RedactorClient:
@@ -92,9 +110,6 @@ class RedactorClient:
             self._raise(response)
 
         manifest: dict = {}
-        import io
-        import zipfile
-
         with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
             if "manifest.json" in bundle.namelist():
                 manifest = json.loads(bundle.read("manifest.json"))
@@ -110,3 +125,36 @@ class RedactorClient:
         if response.status_code != 200:
             self._raise(response)
         return response.json()
+
+
+# Imported here rather than at the top: local_client needs names from this
+# module, so importing it earlier would be circular. Re-exported so callers
+# have a single place to import either client from.
+from frontend.ui.local_client import LocalClient  # noqa: E402
+
+__all__ = [
+    "ApiError",
+    "Client",
+    "LocalClient",
+    "RedactionBundle",
+    "RedactorClient",
+    "Upload",
+    "make_client",
+]
+
+
+def make_client(api_url: str | None = None) -> Client:
+    """The client this deployment should use.
+
+    An explicit `api_url`, or CV_REDACTOR_API_URL in the environment, means
+    there is a service to talk to. With neither, there is no second process to
+    reach and the work happens here.
+
+    Defaulting to in-process is what makes a single-process host work with no
+    configuration at all; `docker compose` and the local two-terminal setup both
+    set CV_REDACTOR_API_URL, so they keep the HTTP path.
+    """
+    url: str | None = api_url if api_url is not None else os.environ.get("CV_REDACTOR_API_URL")
+    if url and url.strip() and url.strip() != LocalClient.base_url:
+        return RedactorClient(url.strip())
+    return LocalClient()

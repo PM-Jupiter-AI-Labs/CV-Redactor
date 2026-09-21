@@ -1,0 +1,13 @@
+# Streamlit settings that apply wherever the app runs, including Community
+# Cloud. Anything host-specific stays in the host's own configuration.
+
+[server]
+# Matches the redactor's own CV_REDACTOR_MAX_UPLOAD_MB default, so the browser
+# refuses an oversized file immediately rather than after a long upload.
+maxUploadSize = 25
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"

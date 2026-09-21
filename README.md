@@ -71,9 +71,12 @@ for people who should not have to edit `names.py`:
 
 ```bash
 uv sync --project resume_scrubber --group frontend
-uv run --project resume_scrubber uvicorn frontend.api.main:app    # terminal 1
-uv run --project resume_scrubber streamlit run streamlit_app.py   # terminal 2
+uv run --project resume_scrubber streamlit run streamlit_app.py
 ```
+
+That one command is the whole app: with no API configured the UI runs the
+redactor in-process. To run the FastAPI service as well, see
+[frontend/README.md](frontend/README.md).
 
 Or `docker compose up --build` for both. See [frontend/README.md](frontend/README.md),
 which also covers what can and cannot be hosted on Streamlit Community Cloud.

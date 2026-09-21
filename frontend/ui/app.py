@@ -43,7 +43,7 @@ _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from frontend.ui.client import ApiError, RedactorClient  # noqa: E402
+from frontend.ui.client import ApiError, Client, make_client  # noqa: E402
 
 PAGE_TITLE: str = "CV Redactor"
 SUPPORTED: list[str] = ["pdf", "docx"]
@@ -77,38 +77,56 @@ def _reset_downstream() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sidebar() -> RedactorClient:
-    """Connection settings, and a live check that the API is actually there."""
+def _sidebar() -> Client:
+    """Where the work happens, and whether it is actually reachable.
+
+    With no API configured the redactor runs in this process and there is
+    nothing to connect to, so the URL box would only be a way to break it. It
+    appears when an API is configured, and not otherwise.
+    """
     st.sidebar.header("Service")
-    # Streamlit types text_input as optional; it only returns None when the
-    # widget has been cleared, which the default here prevents.
-    base_url: str = (
-        st.sidebar.text_input(
-            "API URL",
-            value=st.session_state.get("api_url", RedactorClient().base_url),
-            help="Where the FastAPI service is running.",
+    client: Client = make_client(st.session_state.get("api_url"))
+    remote: bool = client.base_url != "in-process"
+
+    if remote:
+        # Streamlit types text_input as optional; it only returns None when the
+        # widget has been cleared, which the default here prevents.
+        url: str = (
+            st.sidebar.text_input(
+                "API URL",
+                value=client.base_url,
+                help="Where the FastAPI service is running.",
+            )
+            or client.base_url
         )
-        or RedactorClient().base_url
-    )
-    st.session_state["api_url"] = base_url
-    client = RedactorClient(base_url)
+        if url != client.base_url:
+            st.session_state["api_url"] = url
+            client = make_client(url)
 
     try:
         health = client.health()
-        st.sidebar.success(f"Connected · v{health.get('version', '?')}")
+        version: str = health.get("version", "?")
+        if remote:
+            st.sidebar.success(f"Connected · v{version}")
+        else:
+            st.sidebar.success(f"Running in-process · v{version}")
         if not health.get("ocr_available", False):
             st.sidebar.warning(
-                "OCR is disabled here. Scanned PDFs, which have no text layer, "
-                "will be reported as errors rather than redacted."
+                "OCR is off here. Scanned PDFs, which have no text layer, are "
+                "reported as errors rather than redacted."
             )
     except ApiError as exc:
         st.sidebar.error(str(exc))
-        st.sidebar.caption("Start it with: `uvicorn frontend.api.main:app`")
+        if remote:
+            st.sidebar.caption("Start it with: `uvicorn frontend.api.main:app`")
 
     st.sidebar.divider()
     st.sidebar.caption(
-        "Files are held in this browser session and sent with each request. "
-        "The service stores nothing."
+        "Files are held in this browser session for as long as you are using "
+        "it. Nothing is written to disk and nothing is kept afterwards."
+        if not remote
+        else "Files are held in this browser session and sent with each "
+        "request. The service stores nothing."
     )
     return client
 
@@ -118,7 +136,7 @@ def _sidebar() -> RedactorClient:
 # ---------------------------------------------------------------------------
 
 
-def _step_upload(client: RedactorClient) -> None:
+def _step_upload(client: Client) -> None:
     st.subheader("1 · Upload")
     files = st.file_uploader(
         "CVs to redact",
@@ -252,7 +270,7 @@ def _plan_for(document: dict) -> dict:
     }
 
 
-def _step_review(client: RedactorClient) -> list[dict]:
+def _step_review(client: Client) -> list[dict]:
     documents: list[dict] = st.session_state["documents"]
     if not documents:
         return []
@@ -284,7 +302,7 @@ def _step_review(client: RedactorClient) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _step_results(client: RedactorClient, plans: list[dict]) -> None:
+def _step_results(client: Client, plans: list[dict]) -> None:
     bundle = st.session_state["bundle"]
     if bundle is None:
         return
